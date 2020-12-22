@@ -1,0 +1,342 @@
+---
+title: "Analyzing How to Win a Competitive Game in Overwatch as a Support with a Logistic Model"
+author: "Zhaonan Liu 1004963239"
+date: "2020/12/18"
+output: pdf_document
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## \textcolor{blue}{Abstract}
+Overwatch is a 6v6 combat team-based shooter video game developed and published by Blizzard Entertainment. A logistic regression with strata of different ranks is built to find variables that increase the probability of winning in Overwatch's competitive game as support. Therefore, players can be targeted to practice in a specific variable, and getting a higher competitive score for prizes and the opportunity to get into a legal competition team. The model shows that the type of map is irrelevant, and the characters Mercy and Zen are significant to wining a competitive match.
+\newline
+
+## \textcolor{blue}{Keywords}
+Observational Study, Overwatch Support in 2016-2018, Winning Competitive, Logistic Model, Stratified Sampling
+\newline
+
+## \textcolor{blue}{Introduction}
+Statistical analysis is group information together for processing calculation and study. It is the theory and technique of quantitatively processing data. Today is an era of big data, and many industries want to keep up with the trend and use this technology to improve sales or achieve their goals. Games are also one of the categories. And this report analyzes an Overwatch dataset from Myles O'Neill, which obtained with possible factors of winning in the game, along with other causes like average team SR score(competitive score), maps, enemy team SR and more. (Myles,2018)[1]. Furthermore, the goal is to find the core factors for winning competitive games as support.
+\newline
+\newline
+Moreover, this analysis will treat the data as a stratified random sampling dataset, a sampling method that "involves the division of a population into smaller sub-groups known as strata. ”(Adam,2020)[2]. In other words, Overwatch automatically assigns each team to compete in the same rank, so for this dataset, the rank becomes strata. Within these strata, the same rank players share the same characters. While among the strata, the players have different gaming skill levels. Additionally, the only way influences one’s SR score(competitive score) is whether one wins or loses in each game. Thus the result becomes the response variable to predict in this dataset. For a binary prediction, it is best to use a logistic model, a generalized linear model, and it needs to assume all trials of games are independent. 
+\newline
+\newline
+The Overwatch dataset provides by Myles O'Neill is used for modeling a logistic regression on increasing the probability of winning in Overwatch's competitive game as support. The Methodology section provides an introduction of the data with used variables, method violation and method diagnostic. Besides, predict variables "player_team_sr"  and "enemy_team_sr" will be the numeric predictor variables, "map" and "character" will be the categorical predictor variables; these variables will also be further explained in the Data section. The result of the logistic model is in the Result section. Moreover, the conclusion will be presented in the Discussion section.
+\newline
+
+
+
+```{r include=FALSE}
+data <- read.csv("/Users/Janet/Downloads/overwatch-diary.csv", header=TRUE)
+library(tidyverse)
+library(xfun)
+glimpse(data)
+data <- data%>%
+  select(my_team_sr,enemy_team_sr,map,result,charcter_1)
+data$my_team_sr <- as.numeric(data$my_team_sr)
+data$enemy_team_sr <- as.numeric(data$enemy_team_sr)
+data <- na.omit(data)
+data$diff_sr = data$my_team_sr - data$enemy_team_sr
+colSums(is.na(data))
+summary(data$my_team_sr)
+summary(data$enemy_team_sr)
+summary(data$diff_sr)
+
+data$map <- as.factor(data$map)
+levels(data$map)
+data$map = ifelse(data$map == "Dorado"|data$map == "Junkertown"|data$map == "junkerTown"|data$map == "Eichenwade"|data$map == "Eichenwalde"|data$map == "EichenWalde"|data$map == "Gibraltar"|data$map == "Gilbraltar"|data$map == "Hollywood"|data$map == "JunkerTown"|data$map == "King's Row"|data$map == "king's Row"|data$map == "Numbani"|data$map == "king's Row"|data$map == "Route 66","Escort",ifelse(data$map == "Hanamura"|data$map == "Hoirzon"|data$map == "Horizon"|data$map == "ilios"|data$map == "Ilios"|data$map == "Illios"|data$map == "Gibraltar"|data$map == "Gilbraltar"|data$map == "Lijang"|data$map == "lijang Tower"|data$map == "Lijang Tower"|data$map == "LIjang Tower"|data$map == "lijiang Tower"|data$map == "Lijiang Tower"|data$map == "Nepal"|data$map == "Oasis"|data$map == "Temple of Anubis"|data$map == "TEmple of Anubis"|data$map == "Volkaya Industries"|data$map == "Volskaya"|data$map == "Volskaya Industries","Capture",NA))
+data <- na.omit(data)
+colSums(is.na(data))
+data$map <- as.factor(data$map)
+summary(data$map)
+
+data$result <- as.factor(data$result)
+levels(data$result)
+summary(data$result)
+data$result = ifelse(data$result == "L"|data$result == "Loss","0",ifelse(data$result == "W"|data$result == "Win","1",NA))
+data <- na.omit(data)
+colSums(is.na(data))
+data$result <- as.factor(data$result)
+summary(data$result)
+
+data$charcter_1 <- as.factor(data$charcter_1)
+summary(data$charcter_1)
+data$charcter_1 = ifelse(data$charcter_1 == "Ana"|data$charcter_1 == "ANa","Ana",ifelse(data$charcter_1 == "Lucio"|data$charcter_1 == "LUcio"|data$charcter_1 == "Luico","Lucio",ifelse(data$charcter_1 == "mercy"|data$charcter_1 == "Mercy"|data$charcter_1 == "Mery","Mercy",ifelse(data$charcter_1 == "Moira","Moira", ifelse(data$charcter_1 == "Symmetra","Symmetra",ifelse(data$charcter_1 == "zen"|data$charcter_1 == "Zen","Zen",NA))))))
+data <- na.omit(data)
+colSums(is.na(data))
+data$charcter_1 <- as.factor(data$charcter_1)
+summary(data$charcter_1)                                                                     
+```
+
+```{r include=FALSE}
+library(janitor)
+library(tidyverse)
+library(survey)
+data$Rank <- ifelse(data$my_team_sr<2000,"Silver",
+                    ifelse(data$my_team_sr>=3000,"Diamond",
+                           ifelse(data$my_team_sr<3000&data$my_team_sr>=2500,"Platinum",
+                              ifelse(data$my_team_sr<2500&data$my_team_sr>=2000,"Gold",NA))))
+data$Rank <- as.factor(data$Rank)
+summary(data$Rank)  
+35000000*0.21
+35000000*0.32
+35000000*0.25
+35000000*0.10
+data$fpc<-ifelse(data$Rank=="Silver",7350000,
+                ifelse(data$Rank=="Gold",11200000,
+                       ifelse(data$Rank=="Platinum",8750000,
+                              ifelse(data$Rank=="Diamond",3500000,0))))
+clean_data <- data
+glimpse(clean_data)
+clean_data$character=clean_data$charcter_1
+clean_data<- clean_data%>%select(-charcter_1)
+prv.design.strs <- svydesign(id=~1,strata=~Rank, data=clean_data,fpc=~fpc)
+svyglm.strs.logit<-svyglm(result ~ my_team_sr+enemy_team_sr+map+character, prv.design.strs, family="binomial")
+summary(svyglm.strs.logit)
+```
+
+```{r include=FALSE}
+summary(data)
+```
+## \textcolor{blue}{Methodology}
+\textcolor{red}{Data}
+\newline
+This data was obtained from Kaggle, Myles O'Neill, which initially contained 3299 observations with 49 variables, cleaned in 2018. (O'Neil, 2018) The dataset is recorded by one player over 2 years. This survey's target sample is all matches played in the 2 years, while the final valid sample size is 2474 because some of the observations are missing crucial information. Still, this is the largest dataset published on the internet, which increase the variation and minimize the margin of error. Furthermore, the survey is well designed with various variables that cover many possible causes of victory, but it is filled out poorly. More than of the variables are missing 60%-90% data, which makes these variables insignificant. It will be more efficient if the data records more than one player's competitive games and more valid variables. However, there is no such ideal dataset available, so it might not be able to say that all types of Overwatch players are suitable for the final model.
+\newline
+
+*Table1.Values of Primary Selection of Final Dataset*
+\begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    Variables & Min & Median & Mean & Max & Number of Observation \\
+    \hline
+   playerteamsr & 1964 & 2662 & 2662 & 3178 & 2474 \\
+    \hline
+   enemyteamsr & 1937 & 2664 & 2661 & 3172 & 2474 \\
+     \hline
+   mapCapture &  &  &  &  & 1009 \\
+     \hline
+   mapEscort &  &  &  &  & 1465 \\
+     \hline
+   result0 &  &  &  &  & 1251 \\
+     \hline
+   result1 &  &  &  &  & 1223 \\
+     \hline
+   characterAna &  &  &  &  & 465 \\
+      \hline
+   characterLucio &  &  &  &  & 341 \\  
+      \hline
+   characterMercy &  &  &  &  & 597 \\  
+      \hline
+   characterMoira &  &  &  &  & 135 \\  
+      \hline
+   characterSymmetra &  &  &  &  & 141 \\  
+      \hline
+   characterZen &  &  &  &  & 795 \\  
+    \hline
+    \end{tabular}
+
+On the other hand, from table1 the variable "player_team_sr" shows the player range from 1964 to 3178. This provides a great variety of SR score (competitive score) that covers most of the ranks, which benefits researchers to get more reliable results with greater precision. 
+\newline
+\newline
+In the "charcter_1" category, it is clear that from table1, the character usage counts are very different. Zen is the most popular character with 795 counts, while Moira only used 135 times. This may because Moira is the latest released character among them. Hence this unbalanced data might impact the modeling of the equation.
+\newline
+
+*Figure1.Distribution of player team SR score*
+\newline
+```{r echo=FALSE, fig.height=2.15}
+ggplot(clean_data, aes(x = my_team_sr)) +
+  geom_histogram(fill = "cornflowerblue", 
+                 color = "white", binwidth=30) + 
+  labs(title="Distribution of player team SR score",
+       x = "Player team SR score")
+```
+
+Figure 1 presents average team SR scores on the x-axis and the number of game trails played on the y-axis. It has a peak at 2600 SR, which means this player had most of the games in the low Platinum rank (2500-3000SR). This shows that the play is a bit above average point for players, as Gold rank(2000-2500SR) is the most plyers fall. (Nicole, 2018)[3]. The histogram also notes that there are limited games below 2000SR and higher than 3000SR, which are Silver rank (1500-2000SR) and Diamond rank (3000-3500SR).Accordingly, the model might not be suitable for every player in Diamond rank or higher, it is mainly for Gold and Platinum ranks.
+\newline
+\newline
+*Figure2.SR score distribution by charactor*
+\newline
+```{r echo=FALSE, warning=FALSE, fig.height=3}
+ggplot(clean_data, 
+       aes(x = character, 
+           y = my_team_sr)) +
+  geom_boxplot() +
+  labs(title = "SR score distribution by charactor")
+```
+\newline
+As addressed above in table1, Moira is the least player, it is also apparent in figure2. Figure2 is a box plot with characters on the x-axis and average team SR score on the y-axis. All characters' interquartile ranges are about the same level within the graph, and their median is about 2600-2700SR. This represents that the names are all used most often in the field of Gold to Platinum. Additionally, the characters are used in all ranks, except Moira. This might impact the significance of Moira with victory in competitive games.
+\newline
+\newline
+\textcolor{red}{Model}
+\newline
+Since the predicted variable only has two categories: win and loss, logistic regression is selected rather linear model regression. First, the independence of each observation is assumed. Secondly, a normal distribution of the data is also assumed.
+\newline
+\newline
+$\log\Big(\dfrac{p}{1-p}\Big) = \beta_0+ \beta1x_{playerteamSR} + \beta2x_{enemyteamSR} +\beta3x_{mapEscort} + \beta4x_{characterLucio} + \beta5x_{characterMercy}+ \beta6x_{characterMoira}+ \beta7x_{characterSymmetra}+ \beta8x_{characterZen}+\epsilon$
+\newline
+\newline
+Above is the logistic regression model formula, where p means the probability of winning a competitive as support; $\dfrac{p}{1-p}$ stands for the odds of winning a competitive as support. Since map and characters are categorical variables that cannot be measure numerically, $\beta3$ to $\beta8$ are all dummy variables.
+\newline
+\newline
+Moreover, as explained in the Instruction section, each rank will be set as strata for a more accurate calculation. Thus, the population needs to be calculated. A new variable "rank" is created depending on the "player_team_sr" variable. Next, each rank's population is calculated by the percentage of each rank times with the player population, where Blizzard Entertainment shared the 2017 ranks portion. (Nicole,2018)[3]. And the player population in late 2017 is 35 million, so all the information is gathered. (Christina)[4]. For example, the Gold players are  32% of the population, so it is 11200000 people.
+\newline
+\newline
+Overall, a logistic regression with stratification sampling method will be generated by R. The model can be diagnosed as having a normal distribution and independent of residual or create a ROC curve(receiver operating characteristic curve) to predict this logistic regression model's accuracy. A more specific way is divide the dataset into two parts as training and test. The test dataset contains a random selection of 2000 tails of game. Then use the remaining trails in the training dataset to fit the model, and predict the data in the test set, and compare it with the true value in the test dataset.
+\newline
+
+## \textcolor{blue}{Result}
+*Table2.Coefficients of noninteraction terms estimated of the final logistics regression model*
+\begin{tabular}{|c|c|c|}
+    \hline
+   Variables & Coefficient & p-value \\
+    \hline
+   Intercept & 2.42211 & 0.12814 \\
+    \hline
+   playerteamsr & 0.01309 & 0.00876 \\
+     \hline
+   enemyteamsr & -0.01431 & 0.00681 \\
+     \hline
+   mapEscort & -0.24920 & 0.14810 \\
+     \hline
+   characterLucio & 0.77513 & 0.06850 \\
+     \hline
+   characterMercy & 1.20492 & 0.01423 \\
+     \hline
+   characterMoria & 1.03569 & 0.02322 \\
+     \hline
+   characterSymmetra & 1.05181 & 0.05242 \\      
+     \hline
+   characterZen & 1.3461 & 0.00324 \\  
+    \hline
+    \end{tabular}
+
+From table2, it is clear that predictor variables "player_team_sr", "enemy_team_sr" and "character" all have p-value smaller than 0.05, which means they are significant to the response variable. In other words, players need to pay more attention to their team SR and choice of character. However, the "map" p-value is greater than 0.05. Thus not all covariates are significant to winning the competitive game.
+\newline
+\newline
+Throughout table2, the final model can be represent as:
+\newline
+\newline
+$\log\Big(\dfrac{p}{1-p}\Big) = 2.42211+ 0.01309{playerteamSR} - 0.01431{enemyteamSR} - 0.24920{mapEscort} + 0.77513{characterLucio} + 1.20492{characterMercy}+ 1.03569{characterMoira}+ 1.05181{characterSymmetra}+ 1.3461{characterZen}$
+\newline
+\newline
+As mentioned in the Methodology section(model section), $\dfrac{p}{1-p}$ is the odds of winning, so the higher the odds, the higher possibility of victory as support in a competitive game. The formula also shows that $\beta0$ is 2.42211, which means when the player team and enemy team SR are 0, and the player chooses to play Ana in a Capture map, odds of winning equal to exp(2.42211).
+\newline
+\newline
+Moreover, the model shows when player team SR increases by 1 unit, the odds of victory increase by exp(0.01309) times. In contrast, when enemy team SR increases by 1 unit, the  odds of victory increase by exp(-0.01431) times.  This is not surprising, because the higher the SR score, the higher the skilled player are teamed up. It is essential to have higher experienced players in the player team than the enemy team. Therefore, if the player wants to increase the possibility of victory, he should find a higher SR teammate by himself, rather than the Overwatch system randomly assign a teammate who has a low SR score.
+\newline
+\newline
+And as mentioned earlier, maps are not statistically significant enough in this model, which tells that victory does not depend on what kind of map the player has. However, the coefficient of the dummy variable "mapEscort" is -0.24920. This means the odds of victory on the escort map are exp(-0.24920) times of the odds of winning on the other map, which shows it is more likely to lose on the escort map. Thus, players should practice more on the escort map, and be prepared for gaming on this map.
+\newline
+\newline
+Most importantly, the choice of character is also an essential variable in predicting victory. From the formula, the odds of winning with Lucio is exp(0.77513) times of the odds of winning with Ana; the odds of winning with Mercy is exp(1.20492) times of the odds of winning with Ana; the odds of winning with Moria is exp(1.03569) times of the odds of winning with Ana; the odds of winning with Symmetra is exp(1.05181) times of the odds of winning with Ana; the odds of winning with Zen is exp(1.3461) times of the odds of winning with Ana. The lowest impacted character is Lucio, which explains why its p-value is greater than 0.05(in table2) because it is not significant enough. On the opposite, choosing Zen or Mercy has the highest possibility of victory. This can also support the reason for their p-value smaller than 0.05, because they are statistically significant. Besides, Zen has the greatest damage in support, and Mercy has one of the best healing weapon and the ability to resurrect any teammates.
+\newline
+\newline
+Analyze through table2 and the model formula, there are some insignificant variables that this model might not be precise. Hence the ROC curve and Calibration plot are helpful to check its performance.
+\newline
+\newline
+```{r include=FALSE}
+set.seed(1004963239)
+clean_data$ID <- seq.int(nrow(clean_data))
+test_caseid = sample(clean_data$ID,2000)
+```
+
+```{r include=FALSE}
+test = clean_data[clean_data$ID %in% test_caseid, ]
+train = clean_data[!clean_data$ID %in% test_caseid, ]
+```
+
+
+```{r include=FALSE}
+library(pROC)
+p1 <- predict(svyglm.strs.logit, newdata = test, type = "response")
+roc_logit <- roc(test$result ~ p1)
+TPR <- roc_logit$sensitivities
+FPR <- 1 - roc_logit$specificities
+```
+
+*The ROC Graph Figure3*
+\newline
+```{r echo=FALSE, fig.height=3.2,fig.width=6}
+plot(FPR, TPR, xlim = c(0,1), ylim = c(0,1), type = 'l', lty = 1, lwd = 2,col = 'red')
+abline(a = 0, b = 1, lty = 2, col = 'blue')
+text(0.7,0.4,label = paste("AUC = ", round(auc(roc_logit),2)))
+```
+
+```{r include=FALSE}
+auc(roc_logit)
+```
+A ROC graph is usually performed to measure the model accuracy, with the true positive rate on the y-axis and the false positive rate on the x-axis. For figure 3, the area under the curve(AUC) is 0.58. This shows the logistic regression model can discriminate win or loss competitive games 58% of the time. For more accurate digits, the calculated area under the curve is 0.5791. Since AUC closer to 1 is better, the result of 0.58 is not a good performance.
+\newline
+\newline
+*The Normal Q-Q Plot Figure4*
+\newline
+```{r echo=FALSE, fig.height=3.2,fig.width=6}
+res.dev = residuals(svyglm.strs.logit, type = "deviance")
+qqnorm(res.dev)
+qqline(res.dev)
+```
+\newline
+The Normal Q-Q plot helps to check the model assumptions. From figure4, notice the points are centered in the middle of the graph. They fall along the reference line but curve off on the ends. This represents that the data have more extreme values than normal distribution data. The normal distribution in Q-Q plot should show a 45-degree diagonal line, which is different from this graph; instead of a normal distribution, it is more heavy-tailed. This is probably because of the small sample size and most of the data are only in Gold or Diamond Rank.
+\newline
+\newline
+```{r include=FALSE}
+library(rms)
+lrm.final <- lrm(result ~ my_team_sr+enemy_team_sr+map+character,data = train, x =TRUE, y = TRUE, model= T)
+```
+*The Calibration Plot Figure5*
+\newline
+```{r echo=FALSE, fig.height=3,fig.width=4}
+cross.calib <- calibrate(lrm.final, method="crossvalidation", B=10) 
+```
+```{r, echo=FALSE,results='hide',fig.keep='all'}
+plot(cross.calib, las=1, xlab = "Predicted Probability")
+```
+A Calibration plot can also be used in verifying the performance of a model. Figure 5 shows the bias-corrected line is close to the expected diagonal 45-degree line in the middle, and it deviates from the expected diagonal line at the ends of the tails. Therefore, only part of the model is reasonably well calibrated in the center. Overall it does not perform very well in the prediction.
+\newline
+
+## \textcolor{blue}{Discussion}
+\textcolor{red}{Summary}
+\newline
+The Overwatch dataset provides by Myles O'Neill is used for generating a logistic regression that shows how to increase the odds of victory in competitive games as support. After cleaning the dataset, "map", "character", "player_team_sr" and "enemy_team_sr" are predict variables and gaming result becomes the response variable. Before modeling the regression, SR scores are divided into ranks as strata, considering stratification sampling data. 
+\newline
+\newline
+\textcolor{red}{Conclusion}
+\newline
+Finally, from the final model, team SR score, character Zen and character Mercy are the significant predict variables. In other words, these three variables are the most crucial factors to win in a competitive game. When the team average is 1 SR point higher, the odds of victory is 1.013 times higher. When the character changes from Ana to Zen, the odds of winning is increased by 3.842. Similarly, when the character changes from Ana to Mercy, the odds of winning is increased by 3.337. In conclusion, the player should find higher SR score teammates and use more Zen or Mercy to increase their SR score.
+\newline
+\newline
+\textcolor{red}{Weakness}
+\newline
+1. As mentioned in the Introduction section and Data section, the dataset originally contained 49 variables and 3299 observations, but more than 30 of the variables only have 20% information. Thus, there are limited valid information and variables, which means some potential predictor variables are not covered in this model.
+\newline
+\newline
+2. Within the data, there are also some weaknesses. One of them is that not all characters are used throughout the ranks. Similarly, the observations do not cover all ranks, and most of the games were played in the Gold and Diamond rank. Moreover, since this data came from one player, the data is not various enough, making this model not suitable for all players with different ranks and preferences. The lack of information impacts the model performance and leads to a heavily tilted distribution. 
+\newline
+\newline
+\textcolor{red}{Next Steps}
+\newline
+The data is the most severe problem. Even it is the biggest data published it is still not good enough. If possible, the researcher can contact Blizzard Entertainment for a better dataset that includes more various players' performance in all ranks. This will increase the accuracy of the model and give a more precise prediction and result.
+\newline
+
+## \textcolor{blue}{Reference}
+[1] Myles, O'Neill. (2018,Janurary). Overwatch Game Records. Retrieved from www.kaggle.com/mylesoneill/overwatch-game-records. 
+\newline
+\newline
+[2]Adam,Hayes. (2020,September) “Reading Into Stratified Random Sampling.” Investopedia. Retrieved from www.investopedia.com/terms/stratified_random_sampling.asp. 
+\newline
+\newline
+[3]Nicole, Carpenter. (2018, February). “Gold Is the Most Populated Rank in Overwatch's Competitive Play.” Dot Esports. Retrieved from dotesports.com/overwatch/news/competitive-overwatch-rankings-21255. 
+\newline
+\newline
+[4]Christina, Gough. (2020, March). “Overwatch Player Count Worldwide 2018.” Statista, Retrieved from www.statista.com/statistics/618035/number-gamers-overwatch-worldwide/. 
+\newline
+
+## \textcolor{blue}{Appendix}
+Code and data supporting this analysis is available at this GitHub link:
+\newline
+https://github.com/Janet-liu2001/Analyzing-How-to-Win-a-Competitive-Game-in-Overwatch-as-a-Support-with-a-Logistic-Model
